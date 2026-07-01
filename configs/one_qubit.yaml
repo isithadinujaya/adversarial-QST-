@@ -1,0 +1,69 @@
+experiment_name: one_qubit
+quantum:
+  number_qubits: 1
+  copies_per_setting: 1000
+  pure_state_probability: 0.5
+  complex_dtype: complex64
+
+attacks:
+  probabilities:
+    clean: 0.25
+    random_replacement: 0.25
+    targeted_replacement: 0.20
+    worst_case_replacement: 0.20
+    random_frequency: 0.10
+  replacement_fraction_min: 0.05
+  replacement_fraction_max: 0.30
+  replacement_pure_probability: 0.5
+  targeted_state: zero_state
+  worst_case_candidates: 16
+  random_frequency_epsilon: 0.04
+  pgd:
+    enabled: true
+    fraction: 0.50
+    epsilon: 0.04
+    step_size: 0.01
+    steps: 5
+    random_start: true
+    detection_evasion_weight: 0.10
+
+model:
+  name: residual_mlp
+  hidden_dimensions: [128, 128]
+  activation: gelu
+  dropout: 0.05
+  residual_blocks: 3
+  transformer_embedding_dimension: 96
+  transformer_heads: 4
+  transformer_layers: 3
+  transformer_feedforward_dimension: 192
+  extra: {}
+
+loss:
+  reconstruction: frobenius
+  clean_reconstruction_weight: 1.0
+  adversarial_reconstruction_weight: 1.0
+  pgd_reconstruction_weight: 1.0
+  detection_weight: 0.25
+  measurement_consistency_weight: 0.10
+
+training:
+  seed: 1234
+  device: auto
+  epochs: 50
+  batch_size: 128
+  learning_rate: 0.001
+  weight_decay: 0.00001
+  gradient_clip_norm: 5.0
+  early_stopping_patience: 10
+  output_directory: outputs/one_qubit
+
+  data:
+    mode: online
+    train_samples: 20000
+    validation_samples: 3000
+    test_samples: 3000
+    train_file: null
+    validation_file: null
+    test_file: null
+    num_workers: 0

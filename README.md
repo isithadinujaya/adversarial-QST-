@@ -1,174 +1,205 @@
-# Adversarially Robust Neural-Network Quantum State Tomography
+# Adversarial Quantum State Tomography (1–3 Qubits)
 
-This project implements the agreed single-qubit QST pipeline:
+This project implements the complete pipeline discussed for robust neural-network quantum state tomography:
 
-- Haar-random pure states
-- Ginibre mixed states
-- depolarized pure states
-- Pauli X, Y and Z measurements
-- **1000 copies for each basis** (3000 physical copies per state)
-- random physical copy replacement
-- targeted physical copy replacement
-- standard and adaptive L-infinity PGD frequency attacks
-- Cholesky-parameterized density-matrix reconstruction
-- binary attack detection
+\[
+\rho \longrightarrow \text{finite-shot Pauli measurements}
+\longrightarrow \mathbf f
+\longrightarrow \text{clean or adversarial corruption}
+\longrightarrow \text{neural network}
+\longrightarrow (\hat\rho,\;\text{attack logit}).
+\]
 
-## 1. Threat models
+The same codebase supports one, two, and three qubits. Each qubit case uses a separate configuration, dataset realization, and model checkpoint because the input and output dimensions change.
 
-### Random physical replacement
+## Implemented design
 
-For every basis, `floor(alpha * 1000)` copies are replaced. Every corrupted copy conceptually receives an independently sampled replacement state. Each replacement is Haar-pure with probability 0.5 and Ginibre-mixed with probability 0.5.
+- Haar-random pure states.
+- Ginibre-ensemble mixed states.
+- Configurable pure/mixed state ratio.
+- Full local Pauli measurement settings from \(\{X,Y,Z\}^{\otimes n}\).
+- Practical finite-shot frequencies using multinomial sampling.
+- Default: 1000 copies for every measurement setting.
+- Exact copy-replacement simulation: for attack fraction \(\epsilon\), each setting uses \(N-K\) copies of the clean state and \(K\) copies of the replacement state, where \(K=\operatorname{round}(\epsilon N)\).
+- Random replacement attack with pure and mixed replacement states.
+- Targeted replacement attack toward a configurable fixed target state.
+- Worst-case replacement attack selected from random candidates by maximum trace distance.
+- Random frequency-vector attack constrained separately inside every measurement-setting probability simplex.
+- Model-aware PGD frequency attack generated online during training.
+- A reconstruction head that always outputs a physical density matrix using
+  \[
+  \hat\rho=TT^\dagger/\operatorname{Tr}(TT^\dagger).
+  \]
+- A binary attack-detection head.
+- Clean reconstruction loss, adversarial reconstruction loss, attack-detection loss, and optional clean measurement-consistency loss.
+- Model registry so the neural architecture can be changed without rewriting the quantum, attack, data, or training code.
+- Included models: `mlp`, `residual_mlp`, and `setting_transformer`.
 
-Because both ensembles are unitarily invariant and average to the maximally mixed state, an independently redrawn replacement gives a `+` result with probability exactly 0.5 in every Pauli basis after marginalizing over the random state. Training therefore uses an equivalent and much faster binomial sampler. The attack function also provides `simulation_mode="explicit"` to generate every replacement density matrix for small verification experiments.
+## Dimensions
 
-This differs from a targeted attack because the replacements are not selected to move the estimate toward one chosen state.
+| Qubits | Hilbert dimension | Settings | Outcomes/setting | Frequency length | Cholesky outputs |
+|---:|---:|---:|---:|---:|---:|
+| 1 | 2 | 3 | 2 | 6 | 4 |
+| 2 | 4 | 9 | 4 | 36 | 16 |
+| 3 | 8 | 27 | 8 | 216 | 64 |
 
-### Targeted physical replacement
+The frequency vector is flattened in setting-major, outcome-major order. For two qubits, settings are ordered as
+`XX, XY, XZ, YX, YY, YZ, ZX, ZY, ZZ`, and every setting contains outcomes `00, 01, 10, 11`.
 
-One pure/mixed target state is chosen for each clean state, subject to
+## Project structure
 
-`trace_distance(clean, target) >= 0.5`.
+```text
+adversarial_qst_multiqubit/
+├── configs/                   # one-, two-, and three-qubit experiments
+├── qst/
+│   ├── attacks/               # physical, frequency, and PGD attacks
+│   ├── data/                  # online and cached datasets
+│   ├── models/                # model registry and architectures
+│   ├── quantum/               # states, measurements, and metrics
+│   ├── training/              # losses, trainer, checkpoints
+│   └── config.py
+├── scripts/
+│   ├── train.py
+│   ├── evaluate.py
+│   ├── generate_dataset.py
+│   ├── inspect_sample.py
+│   └── smoke_test.py
+└── tests/
+```
 
-Every corrupted copy in all three basis batches is replaced by that same target state.
+## Installation in Windows Git Bash
 
-### PGD frequency attack
-
-PGD perturbs the classical six-dimensional input
-
-`[f_X+, f_X-, f_Y+, f_Y-, f_Z+, f_Z-]`.
-
-Only the three positive frequencies are optimized. The negative frequencies are reconstructed as complements, so each basis always satisfies
-
-`f_B+ + f_B- = 1`.
-
-The code implements:
-
-- `standard`: maximize density-matrix reconstruction loss
-- `adaptive`: maximize reconstruction loss while encouraging the detector to predict clean
-
-## 2. Installation
-
-Create a virtual environment and install the requirements:
+From the project folder:
 
 ```bash
 python -m venv .venv
+source .venv/Scripts/activate
+python -m pip install --upgrade pip
+pip install -r requirements.txt
+pip install -e .
 ```
 
-Linux/macOS:
+On Linux or Raspberry Pi, activate with:
 
 ```bash
 source .venv/bin/activate
-pip install -r requirements.txt
 ```
 
-Windows PowerShell:
-
-```powershell
-.venv\Scripts\Activate.ps1
-pip install -r requirements.txt
-```
-
-For a CUDA-specific PyTorch installation, use the command provided by the official PyTorch installation selector rather than relying on the generic requirement line.
-
-## 3. Verify the implementation
+## Verify the installation
 
 ```bash
+python -m scripts.smoke_test
 pytest -q
 ```
 
-The tests verify:
+## Train
 
-- generated density matrices are Hermitian, positive semidefinite and trace one
-- Pauli frequency pairs are valid
-- physical attacks return valid frequencies
-- targeted states satisfy the distance requirement
-- PGD respects its L-infinity budget
-- the network output is a physical density matrix
-- a complete backward pass succeeds
-
-## 4. Small end-to-end run
-
-Run this first:
+One qubit:
 
 ```bash
-python train.py --debug
+python -m scripts.train --config configs/one_qubit.yaml
 ```
 
-The debug mode uses 384 training states, 96 validation states, one epoch and two PGD steps. Its purpose is to verify the complete pipeline, not to produce final research results.
-
-## 5. Full training
+Two qubits:
 
 ```bash
-python train.py --device auto
+python -m scripts.train --config configs/two_qubit.yaml
 ```
 
-Defaults:
-
-- 50,000 training states
-- 5,000 validation states
-- 10,000 test states
-- batch size 256
-- 50 epochs
-- 10-step standard PGD during training
-- equal numbers of random physical, targeted physical and PGD examples in each batch
-
-The best checkpoint is selected using validation adversarial infidelity.
-
-Useful overrides:
+Three qubits:
 
 ```bash
-python train.py --epochs 100 --batch-size 128 --checkpoint checkpoints/run_01.pt
+python -m scripts.train --config configs/three_qubit.yaml
 ```
 
-## 6. Evaluation
+The default device is `auto`, so CUDA is used when available. Each configuration saves into a separate output directory.
 
-A quick evaluation:
+## Evaluate a checkpoint
 
 ```bash
-python evaluate.py checkpoints/best_model.pt --max-states 100 --pgd-restarts 1 --pgd-steps 5
+python -m scripts.evaluate \
+  --config configs/two_qubit.yaml \
+  --checkpoint outputs/two_qubit/best.pt
 ```
 
-Final evaluation:
+The evaluation report includes clean and attacked reconstruction errors, trace distance, fidelity, attack accuracy, precision, recall, F1, AUROC, per-attack reconstruction metrics, and a separately generated model-aware PGD evaluation.
+
+## Inspect one generated sample
 
 ```bash
-python evaluate.py checkpoints/best_model.pt
+python -m scripts.inspect_sample --config configs/two_qubit.yaml --index 0
 ```
 
-The full evaluation tests:
+## Optional cached datasets
 
-- clean data
-- random physical attack at alpha = 0.01 to 0.30
-- targeted physical attack at alpha = 0.01 to 0.30
-- standard PGD at epsilon = 0.005 to 0.05
-- adaptive PGD at epsilon = 0.005 to 0.05
-- 40 PGD steps and five random restarts by default
+The default mode generates samples deterministically on demand. To create fixed files:
 
-Results are written to `results/evaluation.csv`.
+```bash
+python -m scripts.generate_dataset \
+  --config configs/two_qubit.yaml \
+  --split train \
+  --output data/two_qubit_train.pt
+```
 
-## 7. Loss
+Then set `data.mode: cached` and the corresponding file paths in the YAML configuration.
 
-The training objective is
+## Changing the neural network
 
-`L = L_clean + L_adversarial + 0.1 L_detection`.
+Only change this field:
 
-Each reconstruction loss is
+```yaml
+model:
+  name: residual_mlp
+```
 
-`||rho_hat-rho||_F^2 + 0.1(1-F(rho_hat,rho))`.
+Available names:
 
-The detection loss uses logits with binary cross entropy. Clean inputs have label zero and every attack type has label one.
+```text
+mlp
+residual_mlp
+setting_transformer
+```
 
-## 8. Important interpretation
+All models receive the same frequency vector and return:
 
-The model is trained to reconstruct the original clean state from an attacked frequency vector. For a targeted attack, the training label remains the original state—not the target state.
+```python
+predicted_density, attack_logit = model(frequencies)
+```
 
-The physical contamination fraction `alpha` and frequency-space PGD radius `epsilon` are different quantities and should be reported separately.
+### Adding a future model
 
-## 9. Detection limitation
+Create a file under `qst/models/`, register the class, and keep the same forward interface:
 
-The detector should be interpreted as an **attack-likelihood estimator under the training distribution**, not as a mathematical certificate. A physical replacement batch produces measurement statistics of an effective valid density matrix. From a single frequency vector alone, that effective state can be indistinguishable from a legitimate uncorrupted state with the same density matrix.
+```python
+from qst.models.base import QSTModelBase
+from qst.models.registry import register_model
 
-Therefore, the primary scientifically defensible objective is robust reconstruction. Detection performance is still worth measuring, especially for PGD vectors that may be pair-normalized but inconsistent with a physical Bloch vector, but perfect detection of physical replacement attacks is not generally identifiable from this input alone.
+@register_model("my_future_model")
+class MyFutureModel(QSTModelBase):
+    def __init__(self, experiment_config):
+        super().__init__(experiment_config)
+        # Build feature extractor and heads.
 
-## 10. Runtime note
+    def forward(self, frequencies):
+        features = ...
+        density = self.density_head(features)
+        attack_logit = self.detection_head(features).squeeze(-1)
+        return density, attack_logit
+```
 
-PGD adversarial training is compute-intensive. The full configuration is intended for a GPU. Start with `--debug`, then increase dataset size, epochs, PGD steps and evaluation restarts gradually.
+No state generation, measurement, attack, dataset, loss, training, or evaluation code needs to be changed.
+
+## Important interpretation of the training target
+
+For an attacked sample, the input frequencies come from corrupted physical copies or from a corrupted frequency vector, but the reconstruction target remains the original clean density matrix \(\rho\). Therefore, the model is explicitly trained to:
+
+1. estimate the state that should have been measured before the attack, and
+2. report that the input was attacked.
+
+The returned `observed_density` is stored only for diagnostics. For a replacement attack it equals
+
+\[
+\rho_{\mathrm{observed}}=(1-\epsilon)\rho+\epsilon\sigma,
+\]
+
+while the counts are generated from the exact split of clean and replacement copies.
