@@ -1,0 +1,51 @@
+{
+  "clean_frobenius": 0.07367128547032674,
+  "clean_trace_distance": 0.06161967368920644,
+  "clean_fidelity": 0.9780830059051514,
+  "input_frobenius": 0.12679220898946125,
+  "input_trace_distance": 0.1037893869082133,
+  "input_fidelity": 0.9532175617218017,
+  "detection": {
+    "accuracy": 0.7586666941642761,
+    "precision": 0.7579511215266154,
+    "recall": 0.9995584988962473,
+    "f1": 0.8621477532368621,
+    "auroc": 0.8609727621078491
+  },
+  "per_attack": {
+    "clean": {
+      "frobenius": 0.07381690140484141,
+      "trace_distance": 0.061843791705410496,
+      "fidelity": 0.9778846344980253
+    },
+    "random_replacement": {
+      "frobenius": 0.15194655258370482,
+      "trace_distance": 0.12401097470327564,
+      "fidelity": 0.9467758607605229
+    },
+    "targeted_replacement": {
+      "frobenius": 0.12819545371457935,
+      "trace_distance": 0.10392252970486879,
+      "fidelity": 0.9569855503737926
+    },
+    "worst_case_replacement": {
+      "frobenius": 0.17679253294448222,
+      "trace_distance": 0.14435520674571517,
+      "fidelity": 0.9164725283945887
+    },
+    "random_frequency": {
+      "frobenius": 0.08902805508442328,
+      "trace_distance": 0.07322385886185606,
+      "fidelity": 0.9758585464786476
+    }
+  },
+  "pgd": {
+    "frobenius": 0.19908036629358927,
+    "trace_distance": 0.15893022441864013,
+    "fidelity": 0.950415963490804,
+    "detection_recall": 0.969,
+    "epsilon": 0.04,
+    "steps": 5
+  },
+  "sample_count": 3000
+}
