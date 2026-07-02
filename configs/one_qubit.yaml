@@ -1,69 +1,74 @@
-experiment_name: one_qubit
-quantum:
-  number_qubits: 1
-  copies_per_setting: 1000
-  pure_state_probability: 0.5
-  complex_dtype: complex64
+experiment:
+  name: one_qubit
+  seed: 7
+  num_qubits: 1
+  device: auto
+  output_dir: outputs/one_qubit
 
-attacks:
-  probabilities:
-    clean: 0.25
-    random_replacement: 0.25
-    targeted_replacement: 0.20
-    worst_case_replacement: 0.20
-    random_frequency: 0.10
-  replacement_fraction_min: 0.05
-  replacement_fraction_max: 0.30
-  replacement_pure_probability: 0.5
-  targeted_state: zero_state
-  worst_case_candidates: 16
-  random_frequency_epsilon: 0.04
-  pgd:
-    enabled: true
-    fraction: 0.50
-    epsilon: 0.04
-    step_size: 0.01
-    steps: 5
-    random_start: true
-    detection_evasion_weight: 0.10
+data:
+  train_states: 20000
+  val_states: 3000
+  test_states: 3000
+  shots_per_setting: 1000
+  train_resample_measurements: true
+  pure_fraction: 0.35
+  mixed_fraction: 0.35
+  depolarized_fraction: 0.30
+  depolarized_visibility_min: 0.20
+  depolarized_visibility_max: 1.00
+  ginibre_rank: null
+  num_workers: 0
 
 model:
-  name: residual_mlp
-  hidden_dimensions: [128, 128]
+  name: mlp
+  hidden_dims: [256, 256, 128]
   activation: gelu
   dropout: 0.05
-  residual_blocks: 3
-  transformer_embedding_dimension: 96
-  transformer_heads: 4
-  transformer_layers: 3
-  transformer_feedforward_dimension: 192
-  extra: {}
+  layer_norm: true
+  diagonal_floor: 0.0001
 
 loss:
-  reconstruction: frobenius
-  clean_reconstruction_weight: 1.0
-  adversarial_reconstruction_weight: 1.0
-  pgd_reconstruction_weight: 1.0
-  detection_weight: 0.25
-  measurement_consistency_weight: 0.10
+  clean_weight: 1.0
+  adversarial_weight: 1.0
+  consistency_weight: 0.1
+  fidelity_epsilon: 1.0e-9
+
+attack:
+  training_types: [random_replacement, targeted_replacement, frequency_pgd]
+  training_probabilities: [0.4, 0.3, 0.3]
+  alpha_min: 0.01
+  alpha_max: 0.20
+  epsilon_physical: 0.20
+  target_state: random_far
+  target_min_trace_distance: 0.50
+  epsilon_frequency_min: 0.005
+  epsilon_frequency_max: 0.050
+  pgd_train_steps: 10
+  pgd_eval_steps: 40
+  pgd_step_size: 0.01
+  pgd_random_start: true
 
 training:
-  seed: 1234
-  device: auto
-  epochs: 50
-  batch_size: 128
-  learning_rate: 0.001
-  weight_decay: 0.00001
-  gradient_clip_norm: 5.0
-  early_stopping_patience: 10
-  output_directory: outputs/one_qubit
+  epochs: 100
+  batch_size: 256
+  learning_rate: 0.0003
+  weight_decay: 0.0001
+  gradient_clip_norm: 1.0
+  scheduler_factor: 0.5
+  scheduler_patience: 8
+  early_stopping_patience: 20
+  min_learning_rate: 1.0e-6
+  log_every: 1
 
-  data:
-    mode: online
-    train_samples: 20000
-    validation_samples: 3000
-    test_samples: 3000
-    train_file: null
-    validation_file: null
-    test_file: null
-    num_workers: 0
+evaluation:
+  batch_size: 256
+  max_samples: 3000
+  attacks: [clean, random_replacement, targeted_replacement, worst_replacement, frequency_pgd]
+  default_alpha: 0.10
+  default_epsilon_frequency: 0.03
+  alpha_grid: [0.0, 0.025, 0.05, 0.075, 0.10, 0.15, 0.20, 0.25, 0.30]
+  epsilon_frequency_grid: [0.0, 0.005, 0.01, 0.02, 0.03, 0.04, 0.05, 0.075, 0.10]
+  shots_grid: [100, 250, 500, 1000, 2000, 5000]
+  alpha_epsilon_alpha_grid: [0.0, 0.05, 0.10, 0.15, 0.20]
+  alpha_epsilon_frequency_grid: [0.0, 0.01, 0.02, 0.03, 0.05]
+  save_predictions: true

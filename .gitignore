@@ -1,15 +1,9 @@
-# Python
+.venv/
 __pycache__/
 *.py[cod]
 .pytest_cache/
-.venv/
-
-# Generated data and training outputs
-data/
 outputs/
+figures/
 *.pt
-
-# Editors and OS
-.vscode/
-.idea/
+*.pth
 .DS_Store

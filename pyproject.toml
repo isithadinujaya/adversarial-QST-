@@ -3,15 +3,17 @@ requires = ["setuptools>=68", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "adversarial-qst"
+name = "adversarial-qst-modular"
 version = "0.1.0"
-description = "Flexible adversarial quantum state tomography for one, two, and three qubits"
+description = "Modular adversarial quantum state tomography for one, two, and three qubits"
 requires-python = ">=3.10"
 dependencies = [
-    "numpy>=1.24",
-    "PyYAML>=6.0",
-    "torch>=2.2",
-    "tqdm>=4.66",
+  "torch>=2.2",
+  "numpy>=1.26",
+  "pandas>=2.1",
+  "matplotlib>=3.8",
+  "PyYAML>=6.0",
+  "tqdm>=4.66",
 ]
 
 [tool.setuptools.packages.find]

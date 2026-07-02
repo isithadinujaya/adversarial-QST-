@@ -1,5 +1,5 @@
-"""Adversarial quantum state tomography package."""
+"""Modular adversarial quantum state tomography."""
 
-from qst.config import ExperimentConfig, load_config
+from .config import QSTConfig, load_config
 
-__all__ = ["ExperimentConfig", "load_config"]
+__all__ = ["QSTConfig", "load_config"]

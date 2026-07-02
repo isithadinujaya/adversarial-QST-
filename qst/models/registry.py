@@ -2,39 +2,41 @@ from __future__ import annotations
 
 from collections.abc import Callable
 
-import torch.nn as nn
+from torch import nn
 
-from qst.config import ExperimentConfig
-
-
-_MODEL_REGISTRY: dict[str, type[nn.Module]] = {}
+from qst.config import QSTConfig
+from .mlp import MLPDensityReconstructor
 
 
-def register_model(name: str) -> Callable[[type[nn.Module]], type[nn.Module]]:
-    normalized = name.lower()
-
-    def decorator(model_class: type[nn.Module]) -> type[nn.Module]:
-        if normalized in _MODEL_REGISTRY:
-            raise KeyError(f"A model named {normalized!r} is already registered.")
-        _MODEL_REGISTRY[normalized] = model_class
-        return model_class
-
-    return decorator
+ModelBuilder = Callable[[QSTConfig], nn.Module]
+_MODEL_REGISTRY: dict[str, ModelBuilder] = {}
 
 
-def available_models() -> tuple[str, ...]:
-    return tuple(sorted(_MODEL_REGISTRY))
+def register_model(name: str, builder: ModelBuilder) -> None:
+    key = name.lower()
+    if key in _MODEL_REGISTRY:
+        raise KeyError(f"Model '{name}' is already registered.")
+    _MODEL_REGISTRY[key] = builder
 
 
-def build_model(config: ExperimentConfig) -> nn.Module:
-    # Ensure registration imports occurred even when this module is imported directly.
-    import qst.models.mlp  # noqa: F401
-    import qst.models.residual_mlp  # noqa: F401
-    import qst.models.transformer  # noqa: F401
+def _build_mlp(config: QSTConfig) -> nn.Module:
+    return MLPDensityReconstructor(
+        input_dimension=config.input_dimension,
+        density_dimension=config.dimension,
+        hidden_dims=config.model.hidden_dims,
+        activation=config.model.activation,
+        dropout=config.model.dropout,
+        layer_norm=config.model.layer_norm,
+        diagonal_floor=config.model.diagonal_floor,
+    )
 
-    name = config.model.name.lower()
-    if name not in _MODEL_REGISTRY:
-        raise KeyError(
-            f"Unknown model {name!r}. Available models: {', '.join(available_models())}."
-        )
-    return _MODEL_REGISTRY[name](config)
+
+register_model("mlp", _build_mlp)
+
+
+def build_model(config: QSTConfig) -> nn.Module:
+    key = config.model.name.lower()
+    if key not in _MODEL_REGISTRY:
+        available = ", ".join(sorted(_MODEL_REGISTRY))
+        raise KeyError(f"Unknown model '{config.model.name}'. Available: {available}")
+    return _MODEL_REGISTRY[key](config)

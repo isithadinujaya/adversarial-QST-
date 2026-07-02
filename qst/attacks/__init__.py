@@ -1,4 +1,8 @@
-from qst.attacks.frequency import pgd_frequency_attack
-from qst.attacks.state import choose_replacement_state
+from .frequency_pgd import frequency_pgd_attack, project_linf_product_simplex
+from .physical import physical_replacement_attack
 
-__all__ = ["pgd_frequency_attack", "choose_replacement_state"]
+__all__ = [
+    "frequency_pgd_attack",
+    "project_linf_product_simplex",
+    "physical_replacement_attack",
+]

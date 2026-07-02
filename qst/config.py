@@ -8,199 +8,185 @@ import yaml
 
 
 @dataclass
-class QuantumConfig:
-    number_qubits: int = 1
-    copies_per_setting: int = 1000
-    pure_state_probability: float = 0.5
-    complex_dtype: str = "complex64"
-
-    @property
-    def hilbert_dimension(self) -> int:
-        return 2 ** self.number_qubits
-
-    @property
-    def number_settings(self) -> int:
-        return 3 ** self.number_qubits
-
-    @property
-    def outcomes_per_setting(self) -> int:
-        return 2 ** self.number_qubits
-
-    @property
-    def input_dimension(self) -> int:
-        return self.number_settings * self.outcomes_per_setting
-
-    @property
-    def cholesky_output_dimension(self) -> int:
-        return self.hilbert_dimension ** 2
-
-
-@dataclass
-class PGDConfig:
-    enabled: bool = True
-    fraction: float = 0.5
-    epsilon: float = 0.04
-    step_size: float = 0.01
-    steps: int = 5
-    random_start: bool = True
-    detection_evasion_weight: float = 0.1
-
-
-@dataclass
-class AttackConfig:
-    probabilities: dict[str, float] = field(
-        default_factory=lambda: {
-            "clean": 0.25,
-            "random_replacement": 0.25,
-            "targeted_replacement": 0.20,
-            "worst_case_replacement": 0.20,
-            "random_frequency": 0.10,
-        }
-    )
-    replacement_fraction_min: float = 0.05
-    replacement_fraction_max: float = 0.30
-    replacement_pure_probability: float = 0.5
-    targeted_state: str = "zero_state"
-    worst_case_candidates: int = 16
-    random_frequency_epsilon: float = 0.04
-    pgd: PGDConfig = field(default_factory=PGDConfig)
-
-
-@dataclass
-class ModelConfig:
-    name: str = "residual_mlp"
-    hidden_dimensions: list[int] = field(default_factory=lambda: [128, 128])
-    activation: str = "gelu"
-    dropout: float = 0.05
-    residual_blocks: int = 3
-    transformer_embedding_dimension: int = 96
-    transformer_heads: int = 4
-    transformer_layers: int = 3
-    transformer_feedforward_dimension: int = 192
-    extra: dict[str, Any] = field(default_factory=dict)
-
-
-@dataclass
-class LossConfig:
-    reconstruction: str = "frobenius"
-    clean_reconstruction_weight: float = 1.0
-    adversarial_reconstruction_weight: float = 1.0
-    pgd_reconstruction_weight: float = 1.0
-    detection_weight: float = 0.25
-    measurement_consistency_weight: float = 0.10
+class ExperimentConfig:
+    name: str = "one_qubit"
+    seed: int = 7
+    num_qubits: int = 1
+    device: str = "auto"
+    output_dir: str = "outputs/one_qubit"
 
 
 @dataclass
 class DataConfig:
-    mode: str = "online"
-    train_samples: int = 20_000
-    validation_samples: int = 3_000
-    test_samples: int = 3_000
-    train_file: str | None = None
-    validation_file: str | None = None
-    test_file: str | None = None
+    train_states: int = 20000
+    val_states: int = 3000
+    test_states: int = 3000
+    shots_per_setting: int = 1000
+    train_resample_measurements: bool = True
+    pure_fraction: float = 0.35
+    mixed_fraction: float = 0.35
+    depolarized_fraction: float = 0.30
+    depolarized_visibility_min: float = 0.20
+    depolarized_visibility_max: float = 1.00
+    ginibre_rank: int | None = None
     num_workers: int = 0
 
 
 @dataclass
-class TrainingConfig:
-    seed: int = 1234
-    device: str = "auto"
-    epochs: int = 50
-    batch_size: int = 128
-    learning_rate: float = 1e-3
-    weight_decay: float = 1e-5
-    gradient_clip_norm: float = 5.0
-    early_stopping_patience: int = 10
-    output_directory: str = "outputs/default"
-    data: DataConfig = field(default_factory=DataConfig)
+class ModelConfig:
+    name: str = "mlp"
+    hidden_dims: list[int] = field(default_factory=lambda: [256, 256, 128])
+    activation: str = "gelu"
+    dropout: float = 0.05
+    layer_norm: bool = True
+    diagonal_floor: float = 1.0e-4
 
 
 @dataclass
-class ExperimentConfig:
-    experiment_name: str = "experiment"
-    quantum: QuantumConfig = field(default_factory=QuantumConfig)
-    attacks: AttackConfig = field(default_factory=AttackConfig)
-    model: ModelConfig = field(default_factory=ModelConfig)
-    loss: LossConfig = field(default_factory=LossConfig)
-    training: TrainingConfig = field(default_factory=TrainingConfig)
+class LossConfig:
+    clean_weight: float = 1.0
+    adversarial_weight: float = 1.0
+    consistency_weight: float = 0.1
+    fidelity_epsilon: float = 1.0e-9
 
-    def validate(self) -> None:
-        if self.quantum.number_qubits not in {1, 2, 3}:
-            raise ValueError("number_qubits must be 1, 2, or 3 for the supplied configurations.")
-        if self.quantum.copies_per_setting <= 0:
-            raise ValueError("copies_per_setting must be positive.")
-        if self.quantum.complex_dtype not in {"complex64", "complex128"}:
-            raise ValueError("complex_dtype must be complex64 or complex128.")
-        for name, value in self.attacks.probabilities.items():
-            if value < 0:
-                raise ValueError(f"Attack probability {name!r} cannot be negative.")
-        total = sum(self.attacks.probabilities.values())
-        if abs(total - 1.0) > 1e-8:
-            raise ValueError(f"Attack probabilities must sum to 1.0; received {total}.")
-        required = {
+
+@dataclass
+class AttackConfig:
+    training_types: list[str] = field(
+        default_factory=lambda: [
+            "random_replacement",
+            "targeted_replacement",
+            "frequency_pgd",
+        ]
+    )
+    training_probabilities: list[float] = field(default_factory=lambda: [0.4, 0.3, 0.3])
+    alpha_min: float = 0.01
+    alpha_max: float = 0.20
+    epsilon_physical: float = 0.20
+    target_state: str = "random_far"
+    target_min_trace_distance: float = 0.50
+    epsilon_frequency_min: float = 0.005
+    epsilon_frequency_max: float = 0.050
+    pgd_train_steps: int = 10
+    pgd_eval_steps: int = 40
+    pgd_step_size: float = 0.01
+    pgd_random_start: bool = True
+
+
+@dataclass
+class TrainingConfig:
+    epochs: int = 100
+    batch_size: int = 256
+    learning_rate: float = 3.0e-4
+    weight_decay: float = 1.0e-4
+    gradient_clip_norm: float = 1.0
+    scheduler_factor: float = 0.5
+    scheduler_patience: int = 8
+    early_stopping_patience: int = 20
+    min_learning_rate: float = 1.0e-6
+    log_every: int = 1
+
+
+@dataclass
+class EvaluationConfig:
+    batch_size: int = 256
+    max_samples: int = 3000
+    attacks: list[str] = field(
+        default_factory=lambda: [
             "clean",
             "random_replacement",
             "targeted_replacement",
-            "worst_case_replacement",
-            "random_frequency",
-        }
-        missing = required.difference(self.attacks.probabilities)
-        if missing:
-            raise ValueError(f"Missing attack probability entries: {sorted(missing)}")
-        if not 0 <= self.quantum.pure_state_probability <= 1:
-            raise ValueError("pure_state_probability must lie in [0, 1].")
-        if not 0 <= self.attacks.replacement_pure_probability <= 1:
-            raise ValueError("replacement_pure_probability must lie in [0, 1].")
-        if not 0 <= self.attacks.replacement_fraction_min <= self.attacks.replacement_fraction_max <= 1:
-            raise ValueError("Replacement fractions must satisfy 0 <= min <= max <= 1.")
-        if not self.model.hidden_dimensions or any(value <= 0 for value in self.model.hidden_dimensions):
-            raise ValueError("model.hidden_dimensions must contain positive dimensions.")
-        if not 0 <= self.model.dropout < 1:
-            raise ValueError("model.dropout must lie in [0, 1).")
-        if self.model.transformer_embedding_dimension % self.model.transformer_heads != 0:
-            raise ValueError("transformer_embedding_dimension must be divisible by transformer_heads.")
-        if self.training.data.mode not in {"online", "cached"}:
-            raise ValueError("training.data.mode must be 'online' or 'cached'.")
+            "worst_replacement",
+            "frequency_pgd",
+        ]
+    )
+    default_alpha: float = 0.10
+    default_epsilon_frequency: float = 0.03
+    alpha_grid: list[float] = field(
+        default_factory=lambda: [0.0, 0.025, 0.05, 0.075, 0.10, 0.15, 0.20, 0.25, 0.30]
+    )
+    epsilon_frequency_grid: list[float] = field(
+        default_factory=lambda: [0.0, 0.005, 0.01, 0.02, 0.03, 0.04, 0.05, 0.075, 0.10]
+    )
+    shots_grid: list[int] = field(default_factory=lambda: [100, 250, 500, 1000, 2000, 5000])
+    alpha_epsilon_alpha_grid: list[float] = field(
+        default_factory=lambda: [0.0, 0.05, 0.10, 0.15, 0.20]
+    )
+    alpha_epsilon_frequency_grid: list[float] = field(
+        default_factory=lambda: [0.0, 0.01, 0.02, 0.03, 0.05]
+    )
+    save_predictions: bool = True
 
-    def to_dict(self) -> dict[str, Any]:
+
+@dataclass
+class QSTConfig:
+    experiment: ExperimentConfig = field(default_factory=ExperimentConfig)
+    data: DataConfig = field(default_factory=DataConfig)
+    model: ModelConfig = field(default_factory=ModelConfig)
+    loss: LossConfig = field(default_factory=LossConfig)
+    attack: AttackConfig = field(default_factory=AttackConfig)
+    training: TrainingConfig = field(default_factory=TrainingConfig)
+    evaluation: EvaluationConfig = field(default_factory=EvaluationConfig)
+
+    @property
+    def dimension(self) -> int:
+        return 2 ** self.experiment.num_qubits
+
+    @property
+    def num_settings(self) -> int:
+        return 3 ** self.experiment.num_qubits
+
+    @property
+    def input_dimension(self) -> int:
+        return self.num_settings * self.dimension
+
+    def validate(self) -> None:
+        if self.experiment.num_qubits not in (1, 2, 3):
+            raise ValueError("This project supports one, two, or three qubits.")
+        fractions = (
+            self.data.pure_fraction
+            + self.data.mixed_fraction
+            + self.data.depolarized_fraction
+        )
+        if abs(fractions - 1.0) > 1.0e-6:
+            raise ValueError("State-ensemble fractions must sum to one.")
+        probs = self.attack.training_probabilities
+        if len(probs) != len(self.attack.training_types):
+            raise ValueError("Attack types and attack probabilities must have equal length.")
+        if abs(sum(probs) - 1.0) > 1.0e-6:
+            raise ValueError("Attack training probabilities must sum to one.")
+        if not (0.0 <= self.attack.alpha_min <= self.attack.alpha_max <= 1.0):
+            raise ValueError("Require 0 <= alpha_min <= alpha_max <= 1.")
+        if self.attack.epsilon_physical < 0.0:
+            raise ValueError("epsilon_physical must be nonnegative.")
+        if self.attack.epsilon_frequency_min < 0.0:
+            raise ValueError("Frequency epsilon must be nonnegative.")
+        if self.attack.epsilon_frequency_min > self.attack.epsilon_frequency_max:
+            raise ValueError("Frequency epsilon minimum exceeds maximum.")
+
+    def as_dict(self) -> dict[str, Any]:
         return asdict(self)
 
 
-def _construct_config(raw: dict[str, Any]) -> ExperimentConfig:
-    quantum = QuantumConfig(**raw.get("quantum", {}))
-
-    attacks_raw = dict(raw.get("attacks", {}))
-    pgd = PGDConfig(**attacks_raw.pop("pgd", {}))
-    attacks = AttackConfig(pgd=pgd, **attacks_raw)
-
-    model = ModelConfig(**raw.get("model", {}))
-    loss = LossConfig(**raw.get("loss", {}))
-
-    training_raw = dict(raw.get("training", {}))
-    data = DataConfig(**training_raw.pop("data", {}))
-    training = TrainingConfig(data=data, **training_raw)
-
-    config = ExperimentConfig(
-        experiment_name=raw.get("experiment_name", "experiment"),
-        quantum=quantum,
-        attacks=attacks,
-        model=model,
-        loss=loss,
-        training=training,
-    )
-    config.validate()
-    return config
+def _update_dataclass(instance: Any, values: dict[str, Any]) -> Any:
+    for key, value in values.items():
+        if not hasattr(instance, key):
+            raise KeyError(f"Unknown configuration field: {type(instance).__name__}.{key}")
+        setattr(instance, key, value)
+    return instance
 
 
-def load_config(path: str | Path) -> ExperimentConfig:
+def load_config(path: str | Path) -> QSTConfig:
     path = Path(path)
     with path.open("r", encoding="utf-8") as handle:
-        raw = yaml.safe_load(handle)
-    if not isinstance(raw, dict):
-        raise ValueError(f"Configuration file {path} must contain a YAML mapping.")
-    return _construct_config(raw)
+        raw = yaml.safe_load(handle) or {}
 
+    config = QSTConfig()
+    for section_name, section_values in raw.items():
+        if not hasattr(config, section_name):
+            raise KeyError(f"Unknown configuration section: {section_name}")
+        section = getattr(config, section_name)
+        _update_dataclass(section, section_values or {})
 
-def config_from_dict(raw: dict[str, Any]) -> ExperimentConfig:
-    return _construct_config(raw)
+    config.validate()
+    return config
