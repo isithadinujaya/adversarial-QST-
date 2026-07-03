@@ -2,8 +2,5 @@
 __pycache__/
 *.py[cod]
 .pytest_cache/
-outputs/
-figures/
-*.pt
 *.pth
 .DS_Store

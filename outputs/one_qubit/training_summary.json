@@ -1,0 +1,6 @@
+{
+  "best_checkpoint": "outputs/one_qubit/best.pt",
+  "best_validation_total": 0.018955506314833958,
+  "elapsed_seconds": 773.8267667293549,
+  "epochs_completed": 62
+}
