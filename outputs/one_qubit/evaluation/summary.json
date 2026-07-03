@@ -1,0 +1,63 @@
+{
+  "clean": {
+    "maximum_trace_error": 1.1920928955078125e-07,
+    "mean_fidelity": 0.993604675968488,
+    "mean_frobenius_distance": 0.04068583372052914,
+    "mean_infidelity": 0.006395324031511942,
+    "mean_measurement_l2": 0.02594331997378807,
+    "mean_trace_distance": 0.028769228820844244,
+    "median_fidelity": 0.9965208768844604,
+    "minimum_predicted_eigenvalue": 0.00658060610294342,
+    "num_samples": 3000,
+    "std_fidelity": 0.006014044067588971
+  },
+  "frequency_pgd": {
+    "maximum_trace_error": 1.1920928955078125e-07,
+    "mean_fidelity": 0.9864107768138249,
+    "mean_frobenius_distance": 0.10129269866893689,
+    "mean_infidelity": 0.013589223186175028,
+    "mean_measurement_l2": 0.02599055529680724,
+    "mean_trace_distance": 0.07162475405757626,
+    "median_fidelity": 0.9869675636291504,
+    "minimum_predicted_eigenvalue": 0.005317375063896179,
+    "num_samples": 3000,
+    "std_fidelity": 0.007553867383489114
+  },
+  "random_replacement": {
+    "maximum_trace_error": 1.1920928955078125e-07,
+    "mean_fidelity": 0.9844475039442381,
+    "mean_frobenius_distance": 0.07692361266693722,
+    "mean_infidelity": 0.015552496055761974,
+    "mean_measurement_l2": 0.028394824760771976,
+    "mean_trace_distance": 0.05439320806848506,
+    "median_fidelity": 0.9930973947048187,
+    "minimum_predicted_eigenvalue": 0.008102945983409882,
+    "num_samples": 3000,
+    "std_fidelity": 0.01726191940369758
+  },
+  "targeted_replacement": {
+    "maximum_trace_error": 1.1920928955078125e-07,
+    "mean_fidelity": 0.9811032919287681,
+    "mean_frobenius_distance": 0.09050586909645547,
+    "mean_infidelity": 0.01889670807123184,
+    "mean_measurement_l2": 0.0295037017747527,
+    "mean_target_fidelity": 0.445866064414382,
+    "mean_trace_distance": 0.06399731356588503,
+    "median_fidelity": 0.9918705224990845,
+    "minimum_predicted_eigenvalue": 0.013758584856987,
+    "num_samples": 3000,
+    "std_fidelity": 0.019589523099612587
+  },
+  "worst_replacement": {
+    "maximum_trace_error": 1.1920928955078125e-07,
+    "mean_fidelity": 0.9684967824220657,
+    "mean_frobenius_distance": 0.10218291238012413,
+    "mean_infidelity": 0.03150321757793426,
+    "mean_measurement_l2": 0.033067442395879575,
+    "mean_trace_distance": 0.07225423000194132,
+    "median_fidelity": 0.9848725497722626,
+    "minimum_predicted_eigenvalue": 0.03390958905220032,
+    "num_samples": 3000,
+    "std_fidelity": 0.028588544347881835
+  }
+}
