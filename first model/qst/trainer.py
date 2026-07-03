@@ -26,14 +26,8 @@ class EpochResult:
     total: float
     clean: float
     adversarial: float
-    physical: float
-    pgd: float
     consistency: float
-    physical_consistency: float
-    pgd_consistency: float
     clean_fidelity: float
-    physical_fidelity: float
-    pgd_fidelity: float
     adversarial_fidelity: float
 
 
@@ -52,10 +46,8 @@ class RobustQSTTrainer:
         self.output_dir = ensure_dir(config.experiment.output_dir)
         self.loss_function = RobustTomographyLoss(
             clean_weight=config.loss.clean_weight,
-            physical_weight=config.loss.physical_weight,
-            pgd_weight=config.loss.pgd_weight,
+            adversarial_weight=config.loss.adversarial_weight,
             consistency_weight=config.loss.consistency_weight,
-            physical_max_weight=config.loss.physical_max_weight,
         )
         self.optimizer = AdamW(
             self.model.parameters(),
@@ -74,89 +66,78 @@ class RobustQSTTrainer:
         self.validation_seed = config.experiment.seed + 505
         self.history_path = self.output_dir / "history.csv"
 
-    def _uniform_batch(
-        self,
-        minimum: float,
-        maximum: float,
-        batch_size: int,
-        *,
-        generator: torch.Generator,
-    ) -> torch.Tensor:
-        """Draw one independent attack strength for every state."""
+    def _uniform(self, minimum: float, maximum: float) -> float:
         if minimum == maximum:
-            return torch.full(
-                (batch_size,),
-                minimum,
-                device=self.device,
-                dtype=torch.float32,
-            )
-        values = torch.rand(
-            batch_size,
-            generator=generator,
+            return minimum
+        value = torch.rand((), generator=self.train_generator, device=self.device)
+        return minimum + (maximum - minimum) * float(value.item())
+
+    def _sample_attack_type(self) -> str:
+        probabilities = torch.tensor(
+            self.config.attack.training_probabilities,
             device=self.device,
             dtype=torch.float32,
         )
-        return minimum + (maximum - minimum) * values
+        index = torch.multinomial(
+            probabilities, 1, replacement=True, generator=self.train_generator
+        ).item()
+        return self.config.attack.training_types[index]
 
-    def _make_physical_frequencies(
-        self,
-        rho: torch.Tensor,
-        attack_kind: str,
-        *,
-        generator: torch.Generator,
-    ) -> torch.Tensor:
-        alpha = self._uniform_batch(
-            self.config.attack.alpha_min,
-            self.config.attack.alpha_max,
-            rho.shape[0],
-            generator=generator,
-        )
-        result = physical_replacement_attack(
-            rho,
-            alpha=alpha,
-            epsilon_physical=self.config.attack.epsilon_physical,
-            kind=attack_kind,
-            target_state=self.config.attack.target_state,
-            target_min_trace_distance=self.config.attack.target_min_trace_distance,
-            generator=generator,
-        )
-        return self.measurement.sample_frequencies(
-            result.attacked_state,
-            self.config.data.shots_per_setting,
-            generator=generator,
-        )
-
-    def _make_pgd_frequencies(
+    def _make_adversarial_frequencies(
         self,
         rho: torch.Tensor,
         clean_frequencies: torch.Tensor,
         *,
         training: bool,
-        generator: torch.Generator,
+        forced_attack: str | None = None,
     ) -> torch.Tensor:
-        epsilon = self._uniform_batch(
-            self.config.attack.epsilon_frequency_min,
-            self.config.attack.epsilon_frequency_max,
-            rho.shape[0],
-            generator=generator,
-        )
-        steps = (
-            self.config.attack.pgd_train_steps
-            if training
-            else self.config.attack.pgd_eval_steps
-        )
-        return frequency_pgd_attack(
-            self.model,
-            clean_frequencies,
-            rho,
-            epsilon=epsilon,
-            num_settings=self.config.num_settings,
-            outcomes_per_setting=self.config.dimension,
-            steps=steps,
-            step_size=self.config.attack.pgd_step_size,
-            random_start=self.config.attack.pgd_random_start,
-            generator=generator,
-        )
+        attack_kind = forced_attack or self._sample_attack_type()
+        if attack_kind in {
+            "random_replacement",
+            "targeted_replacement",
+            "fixed_replacement",
+            "worst_replacement",
+        }:
+            alpha = self._uniform(
+                self.config.attack.alpha_min, self.config.attack.alpha_max
+            )
+            result = physical_replacement_attack(
+                rho,
+                alpha=alpha,
+                epsilon_physical=self.config.attack.epsilon_physical,
+                kind=attack_kind,
+                target_state=self.config.attack.target_state,
+                target_min_trace_distance=self.config.attack.target_min_trace_distance,
+                generator=self.train_generator,
+            )
+            return self.measurement.sample_frequencies(
+                result.attacked_state,
+                self.config.data.shots_per_setting,
+                generator=self.train_generator,
+            )
+        if attack_kind == "frequency_pgd":
+            epsilon = self._uniform(
+                self.config.attack.epsilon_frequency_min,
+                self.config.attack.epsilon_frequency_max,
+            )
+            steps = (
+                self.config.attack.pgd_train_steps
+                if training
+                else self.config.attack.pgd_eval_steps
+            )
+            return frequency_pgd_attack(
+                self.model,
+                clean_frequencies,
+                rho,
+                epsilon=epsilon,
+                num_settings=self.config.num_settings,
+                outcomes_per_setting=self.config.dimension,
+                steps=steps,
+                step_size=self.config.attack.pgd_step_size,
+                random_start=self.config.attack.pgd_random_start,
+                fidelity_epsilon=self.config.loss.fidelity_epsilon,
+            )
+        raise ValueError(f"Unknown attack type: {attack_kind}")
 
     def _run_epoch(
         self,
@@ -170,94 +151,55 @@ class RobustQSTTrainer:
             "total": 0.0,
             "clean": 0.0,
             "adversarial": 0.0,
-            "physical": 0.0,
-            "pgd": 0.0,
             "consistency": 0.0,
-            "physical_consistency": 0.0,
-            "pgd_consistency": 0.0,
             "clean_fidelity": 0.0,
-            "physical_fidelity": 0.0,
-            "pgd_fidelity": 0.0,
             "adversarial_fidelity": 0.0,
         }
         examples = 0
-
-        if training:
-            generator = self.train_generator
-        else:
+        if not training:
             generator = torch.Generator(device=self.device.type)
-            generator.manual_seed(self.validation_seed + epoch)
+            generator.manual_seed(self.validation_seed)
+        else:
+            generator = self.train_generator
 
         iterator = tqdm(loader, leave=False, desc="train" if training else "val")
-        for batch in iterator:
+        for batch_index, batch in enumerate(iterator):
             rho = batch["rho"].to(self.device)
             batch_size = rho.shape[0]
-
             clean_frequencies = self.measurement.sample_frequencies(
                 rho,
                 self.config.data.shots_per_setting,
                 generator=generator,
             )
-
-            # Every state receives every configured physical attack.
-            physical_frequency_sets = [
-                self._make_physical_frequencies(
-                    rho,
-                    attack_kind,
-                    generator=generator,
-                )
-                for attack_kind in self.config.attack.physical_training_types
-            ]
-
-            # PGD is a separate frequency-space threat family.
-            pgd_frequencies = self._make_pgd_frequencies(
+            forced = None
+            if not training:
+                attacks = self.config.attack.training_types
+                forced = attacks[batch_index % len(attacks)]
+            adversarial_frequencies = self._make_adversarial_frequencies(
                 rho,
                 clean_frequencies,
                 training=training,
-                generator=generator,
+                forced_attack=forced,
             )
 
             if training:
                 self.optimizer.zero_grad(set_to_none=True)
                 clean_prediction = self.model(clean_frequencies)
-                physical_prediction_list = [
-                    self.model(frequencies)
-                    for frequencies in physical_frequency_sets
-                ]
-                physical_predictions = torch.stack(
-                    physical_prediction_list,
-                    dim=1,
-                )
-                pgd_prediction = self.model(pgd_frequencies)
+                adversarial_prediction = self.model(adversarial_frequencies)
                 losses = self.loss_function(
-                    rho,
-                    clean_prediction,
-                    physical_predictions,
-                    pgd_prediction,
+                    rho, clean_prediction, adversarial_prediction
                 )
                 losses.total.backward()
                 torch.nn.utils.clip_grad_norm_(
-                    self.model.parameters(),
-                    self.config.training.gradient_clip_norm,
+                    self.model.parameters(), self.config.training.gradient_clip_norm
                 )
                 self.optimizer.step()
             else:
                 with torch.no_grad():
                     clean_prediction = self.model(clean_frequencies)
-                    physical_prediction_list = [
-                        self.model(frequencies)
-                        for frequencies in physical_frequency_sets
-                    ]
-                    physical_predictions = torch.stack(
-                        physical_prediction_list,
-                        dim=1,
-                    )
-                    pgd_prediction = self.model(pgd_frequencies)
+                    adversarial_prediction = self.model(adversarial_frequencies)
                     losses = self.loss_function(
-                        rho,
-                        clean_prediction,
-                        physical_predictions,
-                        pgd_prediction,
+                        rho, clean_prediction, adversarial_prediction
                     )
 
             with torch.no_grad():
@@ -266,55 +208,22 @@ class RobustQSTTrainer:
                     clean_prediction,
                     epsilon=self.config.loss.fidelity_epsilon,
                 ).mean()
-
-                physical_fidelities = torch.stack(
-                    [
-                        quantum_fidelity(
-                            rho,
-                            prediction,
-                            epsilon=self.config.loss.fidelity_epsilon,
-                        )
-                        for prediction in physical_prediction_list
-                    ],
-                    dim=1,
-                )
-                # Fidelity is larger when better, so the worst attack is the minimum.
-                physical_fidelity = physical_fidelities.min(dim=1).values.mean()
-                pgd_fidelity = quantum_fidelity(
+                adversarial_fidelity = quantum_fidelity(
                     rho,
-                    pgd_prediction,
+                    adversarial_prediction,
                     epsilon=self.config.loss.fidelity_epsilon,
                 ).mean()
-                adversarial_fidelity = (
-                    self.config.loss.physical_weight * physical_fidelity
-                    + self.config.loss.pgd_weight * pgd_fidelity
-                )
-
                 values = losses.detached_dict()
-                for key in (
-                    "total",
-                    "clean",
-                    "adversarial",
-                    "physical",
-                    "pgd",
-                    "consistency",
-                    "physical_consistency",
-                    "pgd_consistency",
-                ):
-                    totals[key] += values[key] * batch_size
+                totals["total"] += values["total"] * batch_size
+                totals["clean"] += values["clean"] * batch_size
+                totals["adversarial"] += values["adversarial"] * batch_size
+                totals["consistency"] += values["consistency"] * batch_size
                 totals["clean_fidelity"] += float(clean_fidelity.cpu()) * batch_size
-                totals["physical_fidelity"] += float(physical_fidelity.cpu()) * batch_size
-                totals["pgd_fidelity"] += float(pgd_fidelity.cpu()) * batch_size
-                totals["adversarial_fidelity"] += (
-                    float(adversarial_fidelity.cpu()) * batch_size
-                )
+                totals["adversarial_fidelity"] += float(adversarial_fidelity.cpu()) * batch_size
                 examples += batch_size
+            iterator.set_postfix(total=f"{totals['total']/examples:.4f}")
 
-            iterator.set_postfix(total=f"{totals['total'] / examples:.4f}")
-
-        return EpochResult(
-            **{key: value / examples for key, value in totals.items()}
-        )
+        return EpochResult(**{key: value / examples for key, value in totals.items()})
 
     def _save_checkpoint(
         self,
@@ -342,11 +251,7 @@ class RobustQSTTrainer:
 
         for epoch in range(1, self.config.training.epochs + 1):
             train_result = self._run_epoch(train_loader, training=True, epoch=epoch)
-            validation_result = self._run_epoch(
-                val_loader,
-                training=False,
-                epoch=epoch,
-            )
+            validation_result = self._run_epoch(val_loader, training=False, epoch=epoch)
             self.scheduler.step(validation_result.total)
             learning_rate = self.optimizer.param_groups[0]["lr"]
             row = {
@@ -362,17 +267,13 @@ class RobustQSTTrainer:
                 writer.writerows(history_rows)
 
             self._save_checkpoint(
-                self.output_dir / "last.pt",
-                epoch,
-                best_validation,
+                self.output_dir / "last.pt", epoch, best_validation
             )
             if validation_result.total < best_validation:
                 best_validation = validation_result.total
                 patience = 0
                 self._save_checkpoint(
-                    self.output_dir / "best.pt",
-                    epoch,
-                    best_validation,
+                    self.output_dir / "best.pt", epoch, best_validation
                 )
             else:
                 patience += 1
@@ -383,8 +284,7 @@ class RobustQSTTrainer:
                     f"train={train_result.total:.6f} | "
                     f"val={validation_result.total:.6f} | "
                     f"clean F={validation_result.clean_fidelity:.6f} | "
-                    f"physical F={validation_result.physical_fidelity:.6f} | "
-                    f"PGD F={validation_result.pgd_fidelity:.6f} | "
+                    f"adv F={validation_result.adversarial_fidelity:.6f} | "
                     f"lr={learning_rate:.2e}"
                 )
             if patience >= self.config.training.early_stopping_patience:

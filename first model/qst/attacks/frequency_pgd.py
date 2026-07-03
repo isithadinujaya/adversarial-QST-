@@ -94,7 +94,7 @@ def frequency_pgd_attack(
     steps: int,
     step_size: float,
     random_start: bool = True,
-    generator: torch.Generator | None = None,
+    fidelity_epsilon: float = 1.0e-9,
 ) -> torch.Tensor:
     if steps <= 0 or (
         not isinstance(epsilon, torch.Tensor) and float(epsilon) == 0.0
@@ -105,7 +105,7 @@ def frequency_pgd_attack(
     model.eval()
     center = clean_frequencies.detach()
     if random_start:
-        noise = torch.empty_like(center).uniform_(-1.0, 1.0, generator=generator)
+        noise = torch.empty_like(center).uniform_(-1.0, 1.0)
         if isinstance(epsilon, torch.Tensor):
             scaled = noise * epsilon.to(center.device, center.dtype).reshape(-1, 1)
         else:

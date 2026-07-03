@@ -1,14 +1,14 @@
 experiment:
-  name: two_qubit
+  name: smoke_one_qubit
   seed: 7
-  num_qubits: 2
+  num_qubits: 1
   device: auto
-  output_dir: outputs/two_qubit
+  output_dir: outputs/smoke_one_qubit
 
 data:
-  train_states: 25000
-  val_states: 4000
-  test_states: 4000
+  train_states: 32
+  val_states: 16
+  test_states: 16
   shots_per_setting: 1000
   train_resample_measurements: true
   pure_fraction: 0.35
@@ -21,7 +21,7 @@ data:
 
 model:
   name: mlp
-  hidden_dims: [512, 512, 256]
+  hidden_dims: [32, 32]
   activation: gelu
   dropout: 0.05
   layer_norm: true
@@ -29,14 +29,13 @@ model:
 
 loss:
   clean_weight: 1.0
-  physical_weight: 0.5
-  pgd_weight: 0.5
+  adversarial_weight: 1.0
   consistency_weight: 0.1
-  physical_max_weight: 0.7
   fidelity_epsilon: 1.0e-9
 
 attack:
-  physical_training_types: [random_replacement, targeted_replacement, worst_replacement]
+  training_types: [random_replacement, targeted_replacement, frequency_pgd]
+  training_probabilities: [0.4, 0.3, 0.3]
   alpha_min: 0.01
   alpha_max: 0.20
   epsilon_physical: 0.20
@@ -44,14 +43,14 @@ attack:
   target_min_trace_distance: 0.50
   epsilon_frequency_min: 0.005
   epsilon_frequency_max: 0.050
-  pgd_train_steps: 10
-  pgd_eval_steps: 40
+  pgd_train_steps: 1
+  pgd_eval_steps: 1
   pgd_step_size: 0.01
   pgd_random_start: true
 
 training:
-  epochs: 120
-  batch_size: 128
+  epochs: 1
+  batch_size: 16
   learning_rate: 0.0003
   weight_decay: 0.0001
   gradient_clip_norm: 1.0
@@ -62,8 +61,8 @@ training:
   log_every: 1
 
 evaluation:
-  batch_size: 128
-  max_samples: 3000
+  batch_size: 16
+  max_samples: 16
   attacks: [clean, random_replacement, targeted_replacement, worst_replacement, frequency_pgd]
   default_alpha: 0.10
   default_epsilon_frequency: 0.03

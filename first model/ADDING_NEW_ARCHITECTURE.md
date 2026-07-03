@@ -1,4 +1,4 @@
- .# Adding another reconstruction architecture
+# Adding another reconstruction architecture
 
 The rest of the repository expects only this interface:
 

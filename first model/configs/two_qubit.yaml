@@ -29,14 +29,13 @@ model:
 
 loss:
   clean_weight: 1.0
-  physical_weight: 0.5
-  pgd_weight: 0.5
+  adversarial_weight: 1.0
   consistency_weight: 0.1
-  physical_max_weight: 0.7
   fidelity_epsilon: 1.0e-9
 
 attack:
-  physical_training_types: [random_replacement, targeted_replacement, worst_replacement]
+  training_types: [random_replacement, targeted_replacement, frequency_pgd]
+  training_probabilities: [0.4, 0.3, 0.3]
   alpha_min: 0.01
   alpha_max: 0.20
   epsilon_physical: 0.20

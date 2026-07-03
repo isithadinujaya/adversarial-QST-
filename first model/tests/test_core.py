@@ -88,17 +88,8 @@ def test_latest_loss_backward():
         outcomes_per_setting=2,
     )
     clean_prediction = model(clean)
-    physical_predictions = torch.stack(
-        [model(adversarial), model(adversarial)],
-        dim=1,
-    )
-    pgd_prediction = model(adversarial)
-    loss = RobustTomographyLoss()(
-        states,
-        clean_prediction,
-        physical_predictions,
-        pgd_prediction,
-    )
+    adversarial_prediction = model(adversarial)
+    loss = RobustTomographyLoss()(states, clean_prediction, adversarial_prediction)
     loss.total.backward()
     assert torch.isfinite(loss.total)
     assert any(parameter.grad is not None for parameter in model.parameters())

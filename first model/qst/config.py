@@ -44,27 +44,22 @@ class ModelConfig:
 
 @dataclass
 class LossConfig:
-    # L_total = clean_weight * L_clean
-    #         + physical_weight * L_physical
-    #         + pgd_weight * L_pgd
-    #         + consistency_weight * C_combined
     clean_weight: float = 1.0
-    physical_weight: float = 0.5
-    pgd_weight: float = 0.5
+    adversarial_weight: float = 1.0
     consistency_weight: float = 0.1
-    physical_max_weight: float = 0.7
-    fidelity_epsilon: float = 1.0e-9  # evaluation only
+    fidelity_epsilon: float = 1.0e-9
 
 
 @dataclass
 class AttackConfig:
-    physical_training_types: list[str] = field(
+    training_types: list[str] = field(
         default_factory=lambda: [
             "random_replacement",
             "targeted_replacement",
-            "worst_replacement",
+            "frequency_pgd",
         ]
     )
+    training_probabilities: list[float] = field(default_factory=lambda: [0.4, 0.3, 0.3])
     alpha_min: float = 0.01
     alpha_max: float = 0.20
     epsilon_physical: float = 0.20
@@ -155,19 +150,11 @@ class QSTConfig:
         )
         if abs(fractions - 1.0) > 1.0e-6:
             raise ValueError("State-ensemble fractions must sum to one.")
-
-        allowed_physical = {
-            "random_replacement",
-            "targeted_replacement",
-            "fixed_replacement",
-            "worst_replacement",
-        }
-        if not self.attack.physical_training_types:
-            raise ValueError("At least one physical training attack is required.")
-        unknown = set(self.attack.physical_training_types) - allowed_physical
-        if unknown:
-            raise ValueError(f"Unknown physical training attacks: {sorted(unknown)}")
-
+        probs = self.attack.training_probabilities
+        if len(probs) != len(self.attack.training_types):
+            raise ValueError("Attack types and attack probabilities must have equal length.")
+        if abs(sum(probs) - 1.0) > 1.0e-6:
+            raise ValueError("Attack training probabilities must sum to one.")
         if not (0.0 <= self.attack.alpha_min <= self.attack.alpha_max <= 1.0):
             raise ValueError("Require 0 <= alpha_min <= alpha_max <= 1.")
         if self.attack.epsilon_physical < 0.0:
@@ -176,17 +163,6 @@ class QSTConfig:
             raise ValueError("Frequency epsilon must be nonnegative.")
         if self.attack.epsilon_frequency_min > self.attack.epsilon_frequency_max:
             raise ValueError("Frequency epsilon minimum exceeds maximum.")
-
-        if self.loss.clean_weight < 0.0:
-            raise ValueError("clean_weight must be nonnegative.")
-        if self.loss.physical_weight < 0.0 or self.loss.pgd_weight < 0.0:
-            raise ValueError("Physical and PGD weights must be nonnegative.")
-        if abs(self.loss.physical_weight + self.loss.pgd_weight - 1.0) > 1.0e-6:
-            raise ValueError("physical_weight and pgd_weight must sum to one.")
-        if not (0.0 <= self.loss.physical_max_weight <= 1.0):
-            raise ValueError("physical_max_weight must lie in [0,1].")
-        if self.loss.consistency_weight < 0.0:
-            raise ValueError("consistency_weight must be nonnegative.")
 
     def as_dict(self) -> dict[str, Any]:
         return asdict(self)

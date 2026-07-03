@@ -116,7 +116,7 @@ class QSTEvaluator:
                 steps=self.config.attack.pgd_eval_steps,
                 step_size=self.config.attack.pgd_step_size,
                 random_start=self.config.attack.pgd_random_start,
-                generator=self.generator,
+                fidelity_epsilon=self.config.loss.fidelity_epsilon,
             )
             return attacked, metadata
         if parameters.attack == "combined":
@@ -142,7 +142,7 @@ class QSTEvaluator:
                 steps=self.config.attack.pgd_eval_steps,
                 step_size=self.config.attack.pgd_step_size,
                 random_start=self.config.attack.pgd_random_start,
-                generator=self.generator,
+                fidelity_epsilon=self.config.loss.fidelity_epsilon,
             )
             metadata.update(
                 {
