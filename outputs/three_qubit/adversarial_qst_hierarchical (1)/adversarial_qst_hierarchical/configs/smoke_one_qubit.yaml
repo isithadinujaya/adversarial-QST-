@@ -1,0 +1,75 @@
+experiment:
+  name: smoke_one_qubit
+  seed: 7
+  num_qubits: 1
+  device: auto
+  output_dir: outputs/smoke_one_qubit
+
+data:
+  train_states: 32
+  val_states: 16
+  test_states: 16
+  shots_per_setting: 1000
+  train_resample_measurements: true
+  pure_fraction: 0.35
+  mixed_fraction: 0.35
+  depolarized_fraction: 0.30
+  depolarized_visibility_min: 0.20
+  depolarized_visibility_max: 1.00
+  ginibre_rank: null
+  num_workers: 0
+
+model:
+  name: mlp
+  hidden_dims: [32, 32]
+  activation: gelu
+  dropout: 0.05
+  layer_norm: true
+  diagonal_floor: 0.0001
+
+loss:
+  clean_weight: 1.0
+  physical_weight: 0.5
+  pgd_weight: 0.5
+  consistency_weight: 0.1
+  physical_max_weight: 0.7
+  fidelity_epsilon: 1.0e-9
+
+attack:
+  physical_training_types: [random_replacement, targeted_replacement, worst_replacement]
+  alpha_min: 0.01
+  alpha_max: 0.20
+  epsilon_physical: 0.20
+  target_state: random_far
+  target_min_trace_distance: 0.50
+  epsilon_frequency_min: 0.005
+  epsilon_frequency_max: 0.050
+  pgd_train_steps: 1
+  pgd_eval_steps: 1
+  pgd_step_size: 0.01
+  pgd_random_start: true
+
+training:
+  epochs: 1
+  batch_size: 16
+  learning_rate: 0.0003
+  weight_decay: 0.0001
+  gradient_clip_norm: 1.0
+  scheduler_factor: 0.5
+  scheduler_patience: 8
+  early_stopping_patience: 20
+  min_learning_rate: 1.0e-6
+  log_every: 1
+
+evaluation:
+  batch_size: 16
+  max_samples: 16
+  attacks: [clean, random_replacement, targeted_replacement, worst_replacement, frequency_pgd]
+  default_alpha: 0.10
+  default_epsilon_frequency: 0.03
+  alpha_grid: [0.0, 0.025, 0.05, 0.075, 0.10, 0.15, 0.20, 0.25, 0.30]
+  epsilon_frequency_grid: [0.0, 0.005, 0.01, 0.02, 0.03, 0.04, 0.05, 0.075, 0.10]
+  shots_grid: [100, 250, 500, 1000, 2000, 5000]
+  alpha_epsilon_alpha_grid: [0.0, 0.05, 0.10, 0.15, 0.20]
+  alpha_epsilon_frequency_grid: [0.0, 0.01, 0.02, 0.03, 0.05]
+  save_predictions: true
