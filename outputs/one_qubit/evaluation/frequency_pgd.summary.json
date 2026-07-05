@@ -1,0 +1,12 @@
+{
+  "maximum_trace_error": 1.1920928955078125e-07,
+  "mean_fidelity": 0.9858399184942246,
+  "mean_frobenius_distance": 0.10348815778518716,
+  "mean_infidelity": 0.014160081505775452,
+  "mean_measurement_l2": 0.029231787189239793,
+  "mean_trace_distance": 0.07317717811154822,
+  "median_fidelity": 0.9868235290050507,
+  "minimum_predicted_eigenvalue": 0.004419445991516113,
+  "num_samples": 3000,
+  "std_fidelity": 0.0074478775004223905
+}

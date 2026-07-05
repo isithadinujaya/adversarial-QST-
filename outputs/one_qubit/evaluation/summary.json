@@ -1,0 +1,63 @@
+{
+  "clean": {
+    "maximum_trace_error": 1.1920928955078125e-07,
+    "mean_fidelity": 0.9933027957280477,
+    "mean_frobenius_distance": 0.04400919064832851,
+    "mean_infidelity": 0.006697204271952311,
+    "mean_measurement_l2": 0.03052195993826414,
+    "mean_trace_distance": 0.031119197110490254,
+    "median_fidelity": 0.9960532486438751,
+    "minimum_predicted_eigenvalue": 0.006027385592460632,
+    "num_samples": 3000,
+    "std_fidelity": 0.006005328917094927
+  },
+  "frequency_pgd": {
+    "maximum_trace_error": 1.1920928955078125e-07,
+    "mean_fidelity": 0.9858399184942246,
+    "mean_frobenius_distance": 0.10348815778518716,
+    "mean_infidelity": 0.014160081505775452,
+    "mean_measurement_l2": 0.029231787189239793,
+    "mean_trace_distance": 0.07317717811154822,
+    "median_fidelity": 0.9868235290050507,
+    "minimum_predicted_eigenvalue": 0.004419445991516113,
+    "num_samples": 3000,
+    "std_fidelity": 0.0074478775004223905
+  },
+  "random_replacement": {
+    "maximum_trace_error": 1.1920928955078125e-07,
+    "mean_fidelity": 0.9838469186226527,
+    "mean_frobenius_distance": 0.07687805934545273,
+    "mean_infidelity": 0.01615308137734731,
+    "mean_measurement_l2": 0.03389978684050341,
+    "mean_trace_distance": 0.05436099709989503,
+    "median_fidelity": 0.99348583817482,
+    "minimum_predicted_eigenvalue": 0.009672656655311584,
+    "num_samples": 3000,
+    "std_fidelity": 0.018232535226352195
+  },
+  "targeted_replacement": {
+    "maximum_trace_error": 1.1920928955078125e-07,
+    "mean_fidelity": 0.9806998301744461,
+    "mean_frobenius_distance": 0.08809286113983641,
+    "mean_infidelity": 0.019300169825553895,
+    "mean_measurement_l2": 0.035359592809768706,
+    "mean_target_fidelity": 0.4441579788674911,
+    "mean_trace_distance": 0.062291059222538026,
+    "median_fidelity": 0.9928079843521118,
+    "minimum_predicted_eigenvalue": 0.013854146003723145,
+    "num_samples": 3000,
+    "std_fidelity": 0.020803194751101723
+  },
+  "worst_replacement": {
+    "maximum_trace_error": 1.1920928955078125e-07,
+    "mean_fidelity": 0.9695399530132611,
+    "mean_frobenius_distance": 0.09227698730739455,
+    "mean_infidelity": 0.03046004698673884,
+    "mean_measurement_l2": 0.041472816241128994,
+    "mean_trace_distance": 0.06524968332890421,
+    "median_fidelity": 0.987884908914566,
+    "minimum_predicted_eigenvalue": 0.034935638308525085,
+    "num_samples": 3000,
+    "std_fidelity": 0.03021534488182454
+  }
+}
